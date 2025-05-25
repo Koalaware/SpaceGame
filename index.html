@@ -1,0 +1,811 @@
+<!DOCTYPE html><html lang="en"><head>
+
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+    <script async="" src="https://www.googletagmanager.com/gtag/js?id=G-9RDG78PVXB"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+
+        gtag('config', 'G-9RDG78PVXB');
+    </script>
+
+
+    <title>KoalaFly</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <meta property="og:url" content="//www.omiod.com/games/fastkat-neon/">
+    <meta property="og:image" content="images/fk-neon.jpg">
+    <meta property="og:description" content="FastKat NEON - HTML5 browser game tech demo.">
+
+    <meta name="twitter:site" content="@Koalaware">
+    <meta name="twitter:title" content="KoalaFly">
+    <meta name="twitter:creator" content="@Koalaware">
+
+    <link rel="stylesheet" type="text/css" href="css/css.css" media="screen">
+    <style>
+        #fkhub {
+            position: absolute;
+            text-decoration: none;
+            padding: 3px 45px;
+            height: 120px;
+            bottom: 45px;
+            right: 0px;
+            width: 100%;
+            text-align: center;
+            padding: 0;
+        }
+        
+        #fkhub img {
+            margin-left: 10px;
+        }
+        
+        #panel {
+            width: 100%;
+            position: absolute;
+            left: 0;
+            top: 45%;
+            margin-left: 0;
+            margin-top: -150px;
+            text-align: center;
+            padding: 20px 0;
+        }
+        
+        #logo {
+            width: 100%;
+            max-width: 650px;
+        }
+        
+        #start {
+            margin-top: 40px;
+        }
+        
+        #credits {
+            text-align: left;
+        }
+        
+        .neontext {
+            color: transparent;
+            font-family: arial;
+            margin-top: 26px;
+            font-size: 32px;
+            letter-spacing: 2px;
+            text-shadow: 0 0 2px white, 0 0 4px white;
+        }
+    </style>
+
+    <script async="" src="https://www.googletagmanager.com/gtag/js?id=UA-58832-3"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+        gtag('config', 'UA-58832-3');
+    </script>
+
+
+</head>
+
+<body>
+    <div id="fkhub">
+        <a href="https://discord.gg/PnwWcywFyb" target="_blank"><img src="images/give_feedback.png"></a>
+    </div>
+    <!--
+		- score
+		- "cats stage" colors.
+		- controls responsiveness
+		- sounds
+		...
+
+		-->
+
+    <!--<canvas id='hud'></canvas>-->
+    <div id="panel">
+        <img src="images/logo.png" id="logo">
+        <div class="neontext">fly through objects - just that</div>
+        <img src="images/start.png" id="start">
+    </div>
+    <div id="audioOuter">
+        <img src="images/music.png" id="audiotoggle"><br><br>
+        <img src="images/esc.png" id="esc">
+    </div>
+
+    <div id="credits">
+        KoalaFly<br>code and design by <a href="https://www.koalaware.github.io">Koala</a> - music by <a href="https://soundcloud.com/fabrizioradica" target="_blank">Fabrizio Radica</a>
+    </div>
+
+    <div id="score"></div>
+
+    <audio id="audioloop" loop="">
+			<source src="media/bumpdemo-radica.mp3" type="audio/mpeg">
+		</audio>
+
+    <script src="js/three.min.js"></script>
+    <script src="js/ConvolutionShader.js"></script>
+    <script src="js/CopyShader.js"></script>
+    <script src="js/FXAAShader.js"></script>
+    <script src="js/EffectComposer.js"></script>
+    <script src="js/MaskPass.js"></script>
+    <script src="js/RenderPass.js"></script>
+    <script src="js/ShaderPass.js"></script>
+    <script src="js/BloomPass.js"></script>
+
+    <script src="js/Detector.js"></script>
+    <script src="js/stats.min.js"></script>
+
+    <script src="js/omiod_audio.js"></script>
+    <script src="js/omiod_service.js"></script>
+
+    <script>
+        "use strict";
+        var gameglobals = {
+            gamestatus: 0
+        };
+
+        (function() {
+            if (!Detector.webgl) Detector.addGetWebGLMessage();
+            var P2 = Math.PI / 2;
+
+            var effectFXAA;
+
+            var mouseX = 0,
+                mouseY = 0,
+                camera, scene, renderer, composer;
+
+            var far = 10000;
+            var tubes = new THREE.Object3D();
+            var deltaTime, tm;
+            var material1, material2, material3, material4, material5;
+            var portaltexture = [];
+            var portalcolor = [];
+            var tube;
+            var speed;
+            var portals;
+            var score = 0;
+            var maxScore = 0;
+            var phase;
+            var phaseScore = 0;
+            var gameStatus; // 0=intro 1=ingame 2=pause
+            var audio;
+
+            //var hudCtx,hudCanvas;
+
+            var musicVolume = 3;
+            init();
+            animate();
+
+            function init() {
+                var i, container;
+
+                tm = (new Date).getTime();
+
+                container = document.createElement('div');
+                document.body.appendChild(container);
+
+                camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 1, far);
+                camera.position.z = 0;
+
+                scene = new THREE.Scene();
+                scene.fog = new THREE.Fog(0x180415, 6000, far);
+
+                renderer = new THREE.WebGLRenderer({
+                    antialias: true
+                });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+
+                renderer.setClearColor(0x180415, 1);
+
+                container.appendChild(renderer.domElement);
+
+                var geometry = new THREE.BoxGeometry(5, 99.5, 5);
+                material1 = new THREE.LineBasicMaterial({
+                    color: 0x00ffff,
+                    opacity: 1,
+                    blending: THREE.AdditiveBlending,
+                    transparent: true
+                });
+                material2 = new THREE.LineBasicMaterial({
+                    color: 0xffaa00,
+                    opacity: 1,
+                    blending: THREE.AdditiveBlending,
+                    transparent: true
+                });
+                material3 = new THREE.LineBasicMaterial({
+                    color: 0x00aa33,
+                    opacity: 1,
+                    blending: THREE.AdditiveBlending,
+                    transparent: true
+                });
+                material4 = new THREE.LineBasicMaterial({
+                    color: 0x991100,
+                    opacity: 1,
+                    blending: THREE.AdditiveBlending,
+                    transparent: true
+                });
+                material5 = new THREE.LineBasicMaterial({
+                    color: 0xff00aa,
+                    opacity: 1,
+                    blending: THREE.AdditiveBlending,
+                    transparent: true
+                });
+
+                material1.visible = false;
+                material2.visible = false;
+                material3.visible = false;
+                material4.visible = false;
+                material5.visible = false;
+
+                var scl = 1;
+
+                // Tubes
+                // scene > tubes > tube (mesh+mesh+mesh)
+
+                scene.add(tubes);
+
+                function makeob1(mat, seq, offz, mx, my) {
+                    var ang;
+
+                    tube = new THREE.Object3D();
+                    tube.rotation.z = -P2 / 2;
+                    tubes.add(tube);
+
+                    for (i = 0; i < seq.length; i++) {
+
+                        scl = .75;
+
+                        ang = -P2 * seq[i];
+
+                        var offx = Math.cos(ang + P2) * 100 * scl;
+                        var offy = Math.sin(ang + P2) * 100 * scl;
+
+                        var mesh1 = new THREE.Mesh(geometry, mat);
+                        mesh1.scale.y = scl;
+                        mesh1.rotation.z = ang;
+                        mesh1.position.set(mx + offx / 2, my + offy / 2, -i * 800 - offz);
+                        tube.add(mesh1);
+
+                        var mesh1b = new THREE.Mesh(geometry, mat);
+                        mesh1b.scale.y = 8.1;
+                        mesh1b.rotation.x = P2;
+                        mesh1b.position.set(mx + offx, my + offy, -i * 800 - 400 - offz);
+                        tube.add(mesh1b);
+
+                        var mesh2 = new THREE.Mesh(geometry, mat);
+                        mesh2.scale.y = scl;
+                        mesh2.rotation.z = ang;
+                        mesh2.position.set(-(mx + offx / 2), -(my + offy / 2), -i * 800 - offz);
+                        tube.add(mesh2);
+
+                        var mesh1b = new THREE.Mesh(geometry, mat);
+                        mesh1b.scale.y = 8.1;
+                        mesh1b.rotation.x = P2;
+                        mesh1b.position.set(-(mx + offx), -(my + offy), -i * 800 - 400 - offz);
+
+                        tube.add(mesh1b);
+
+                        mx += offx;
+                        my += offy;
+                    }
+
+                    tube.bb = calculateDimensions(tube)[2];
+
+                }
+
+                makeob1(material1, [1, 2, 2, 3, 3, 1, 2, 2, 3, 3, 1, 2, 3], 0, 200, 200);
+                makeob1(material2, [3, 3, 1, 2, 2, 3, 1, 1, 1, 1, 2, 3], 5000, 200, 200);
+                makeob1(material3, [2, 2, 2, 3, 2, 3, 2, 1, 2, 3], 0, 200, 200);
+                makeob1(material4, [0, 3, 0, 3, 1, 3, 2, 1, 1, 2, 0, 1, 2, 3, 1, 2, 3], 5000, 200, 200);
+
+                makeob1(material1, [1, 1, 2, 2, 3, 3, 0, 0, 1, 1, 2, 2, 3, 3, 0, 0, 1, 1, 2, 2, 3, 3], 2500, 200, 200);
+                makeob1(material2, [1, 1, 1, 1, 2, 3, 3, 3, 1, 2, 2, 3], 7500, 200, 200);
+                makeob1(material3, [3, 2, 1, 2, 3, 2, 2, 2, 3, 2], 2500, 200, 200);
+                makeob1(material4, [0, 2, 0, 1, 2, 3, 1, 2, 3, 2, 3, 0, 3, 1, 3, 2, 1], 7500, 200, 200);
+
+                makeob1(material5, [3, 2, 0, 0], 2500, 200, 200);
+                makeob1(material5, [3, 2, 1, 3, 2, 1], 7500, 200, 200);
+
+                makeob1(material4, [2, 3, 1, 0, 3], 0, 100, 600);
+                makeob1(material3, [3, 1, 1, 2, 3, 1], 5000, 100, 600);
+                makeob1(material2, [3, 1, 0, 0, 1, 2, 1], 0, 100, 600);
+                makeob1(material1, [0, 1, 3, 3, 2, 3, 2, 1], 5000, 100, 600);
+
+
+                // Portals
+
+                portals = new THREE.Object3D();
+                portaltexture[0] = THREE.ImageUtils.loadTexture("gfx/portal.png");
+                portalcolor[0] = 0xff0000;
+                portaltexture[1] = THREE.ImageUtils.loadTexture("gfx/wink.png");
+                portalcolor[1] = 0xffdd00;
+                portaltexture[2] = THREE.ImageUtils.loadTexture("gfx/cat.png");
+                portalcolor[2] = 0x888888;
+                portaltexture[3] = THREE.ImageUtils.loadTexture("gfx/lips2.png");
+                portalcolor[3] = 0xff00bb;
+
+                var portalmaterial = new THREE.SpriteMaterial({
+                    map: portaltexture[0],
+                    useScreenCoordinates: false,
+                    color: 0xff0000,
+                    fog: true
+                });
+                for (var a = 0; a < 5; a++) {
+                    var material = portalmaterial.clone();
+                    var sprite = new THREE.Sprite(material);
+                    sprite.position.set(0, 0, -a * 2000);
+                    //sprite.material.rotation = P2/2;
+                    sprite.scale.set(200, 200, 1);
+                    sprite.check = 0;
+                    sprite.visible = false;
+                    portals.add(sprite);
+
+                }
+                scene.add(portals);
+
+                // Stats
+
+                var stats = new Stats();
+                stats.domElement.style.position = 'absolute';
+                stats.domElement.style.top = '0px';
+
+                // HUD
+
+                //hudCanvas = document.getElementById('hud'),
+                //hudCtx = hudCanvas.getContext('2d');
+
+                // Audio
+
+                audio = new omiodAudio();
+
+                window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                audio.actx = new AudioContext();
+                audio.bufferLoader = new BufferLoader(
+                    audio.actx, [
+                        'sounds/portal.wav',
+                        'sounds/bad.wav',
+                    ],
+                    audio.soundsReady
+                );
+                audio.bufferLoader.load();
+
+                // FX
+
+                var renderModel = new THREE.RenderPass(scene, camera);
+                var effectBloom = new THREE.BloomPass(1.8, 25, 4.0, 1024);
+                var effectCopy = new THREE.ShaderPass(THREE.CopyShader);
+
+                effectFXAA = new THREE.ShaderPass(THREE.FXAAShader);
+
+                var width = window.innerWidth || 2;
+                var height = window.innerHeight || 2;
+
+                effectFXAA.uniforms['resolution'].value.set(1 / width, 1 / height);
+
+                effectCopy.renderToScreen = true;
+
+                composer = new THREE.EffectComposer(renderer);
+
+                composer.addPass(renderModel);
+                composer.addPass(effectFXAA);
+                composer.addPass(effectBloom);
+                composer.addPass(effectCopy);
+
+
+                // Events
+
+                window.addEventListener('resize', onWindowResize, false);
+                window.addEventListener('keyup', keyUp, true);
+                window.addEventListener('keydown', keyDown, true);
+                window.addEventListener('keypress', keyPress, true);
+                document.addEventListener('mousemove', onDocumentMouseMove, false);
+                document.addEventListener('touchstart', onDocumentTouchStart, false);
+                document.addEventListener('touchmove', onDocumentTouchMove, false);
+
+
+                speed = 0;
+
+                onWindowResize();
+
+                setStatus(0);
+
+                var testCanvas = document.createElement('canvas');
+                const testgl = testCanvas.getContext('webgl');
+                const debugInfo = testgl.getExtension('WEBGL_debug_renderer_info');
+                const testRenderer = testgl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+                testCanvas = null;
+                gtag('event', "renderer", {
+                    'event_category': "KoalaFly",
+                    'event_label': testRenderer
+                });
+
+
+            }
+
+
+
+
+            function onWindowResize() {
+                var windowHalfX = window.innerWidth / 2;
+                var windowHalfY = window.innerHeight / 2;
+
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+
+                renderer.setSize(window.innerWidth, window.innerHeight);
+
+                effectFXAA.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight);
+
+                composer.reset();
+
+                //hudCanvas.width = window.innerWidth;
+                //hudCanvas.height = 20;
+
+            }
+
+            //
+
+            function keyDown(event) {
+                switch ("keyDown ", event.keyCode) {
+                    case 38:
+                    case 87:
+                        //key_up = true;
+                        break;
+                    case 40:
+                    case 83:
+                        //key_down = true;
+                        break;
+                    case 37:
+                    case 65:
+                        //key_left = true;
+                        break;
+                    case 39:
+                    case 68:
+                        //key_right = true;
+                        break;
+                    case 27: // ESC
+                        setStatus(0);
+                        break;
+                    case 67: // C
+                        //console.log("C");
+                        break;
+
+                }
+            }
+
+            function keyUp(event) {
+                //console.log("keyUp",event);
+                switch (event.keyCode) {
+                    case 38:
+                    case 87:
+                        //key_up = false;
+                        break;
+                    case 40:
+                    case 83:
+                        //key_down = false;
+                        break;
+                    case 37:
+                    case 65:
+                        //key_left = false;
+                        break;
+                    case 39:
+                    case 68:
+                        //key_right = false;
+                        break;
+                }
+            }
+
+            function keyPress(event) {
+                //console.log("keyPress",event);
+                switch (event.keyCode) {
+                    case 32: //space
+                        break;
+                    case 102: // f
+                        break;
+                }
+            }
+
+            function onDocumentMouseMove(event) {
+                mouseX = event.clientX / window.innerWidth - 0.5;
+                mouseY = event.clientY / window.innerHeight - 0.5;
+            }
+
+            function onDocumentTouchStart(event) {
+                if (event.touches.length > 1) {
+                    event.preventDefault();
+                    mouseX = event.touches[0].pageX / window.innerWidth - 0.5;
+                    mouseY = event.touches[0].pageY / window.innerHeight - 0.5;
+                }
+            }
+
+            function onDocumentTouchMove(event) {
+                if (event.touches.length == 1) {
+                    event.preventDefault();
+                    mouseX = event.touches[0].pageX / window.innerWidth - 0.5;
+                    mouseY = event.touches[0].pageY / window.innerHeight - 0.5;
+                }
+            }
+
+            //
+
+            function setStatus(s) {
+                gameglobals.gamestatus = gameStatus = s;
+                switch (s) {
+                    case 0: // intro
+                        show("panel");
+                        show("fkhub");
+                        show("credits");
+                        hide("esc");
+                        phase = -1;
+                        initPhase();
+                        document.getElementById('audioloop').pause();
+                        for (var i = 0, l = portals.children.length; i < l; i++) {
+                            portals.children[i].visible = false;
+                        }
+                        renderer.autoClear = true;
+                        break;
+                    case 1: // game start
+                        hide("panel");
+                        hide("fkhub");
+                        hide("credits");
+                        show("esc");
+                        phase = 0;
+                        initPhase();
+                        document.getElementById('audioloop').currentTime = 0;
+                        document.getElementById('audioloop').play();
+                        for (var i = 0, l = portals.children.length; i < l; i++) {
+                            portals.children[i].position = {
+                                x: 0,
+                                y: 0,
+                                z: -i * 2000
+                            };
+                            portals.children[i].material.color.setHex(portalcolor[phase])
+                            portals.children[i].material.map = portaltexture[phase];
+                            portals.children[i].visible = true;
+                        }
+                        renderer.autoClear = false;
+                        score = 0;
+                        maxScore = 0;
+                        break;
+                }
+
+            }
+
+            function initPhase() {
+                if (phase > 3) phase = 0;
+                switch (phase) {
+                    case -1: // intro
+                        material1.visible = material2.visible = material3.visible = material4.visible = material5.visible = true;
+                        material1.color.setHex(0xffffff)
+                        material2.color.setHex(0xffffff)
+                        material3.color.setHex(0xffffff)
+                        material4.color.setHex(0xffffff)
+                        material5.color.setHex(0xffffff)
+                        break;
+                    case 0: // tech
+                        material1.color.setHex(0xffffff)
+                        material2.color.setHex(0xffffff)
+                        material3.color.setHex(0xffffff)
+                        material4.color.setHex(0xffffff)
+                        material5.color.setHex(0xffffff)
+                            // renderer.setClearColor( 0x110000, 1);//zzz
+
+                        break;
+                    case 1: // social
+                        material1.color.setHex(0x00ffff)
+                        material2.color.setHex(0xffaa00)
+                        material3.color.setHex(0x00aa33)
+                        material4.color.setHex(0x991100)
+                        material5.color.setHex(0xff00aa)
+                        break;
+                    case 2: // cats
+                        material1.color.setHex(0x111111)
+                        material2.color.setHex(0xffaa00)
+                        material3.color.setHex(0x995500)
+                        material4.color.setHex(0x222222)
+                        material5.color.setHex(0x333333)
+                        break;
+                    case 3: // sex
+                        material1.color.setHex(0xff0000)
+                        material2.color.setHex(0xbb0000)
+                        material3.color.setHex(0xff0088)
+                        material4.color.setHex(0x8800ff)
+                        material5.color.setHex(0x880000)
+                        break;
+
+                }
+
+            }
+
+            function updateScore() {
+
+                if (maxScore < score) maxScore = score;
+
+                html("score", maxScore + "<span>" + (maxScore != score ? " " + score + "</span>" : ""));
+
+                if (maxScore > 5) material1.visible = true;
+                if (maxScore > 10) material2.visible = true;
+                if (maxScore > 20) material3.visible = true;
+                if (maxScore > 30) material4.visible = true;
+                if (maxScore > 40) material5.visible = true;
+
+                if (phaseScore > 30) {
+                    phaseScore = 0;
+                    phase++;
+                    initPhase();
+                }
+
+            }
+
+
+            function animate() {
+                requestAnimationFrame(animate);
+
+                var ntm = (new Date).getTime();
+                deltaTime = ntm - (tm);
+                tm = ntm;
+
+                if (isHidden) deltaTime = 0;
+
+                if (gameStatus == 1) {
+                    speed += deltaTime / 5000;
+                    if (speed > 10) speed = 10;
+                } else {
+                    speed = .1;
+                }
+
+                render();
+
+            }
+
+            function render() {
+
+                if (!isHidden) {
+
+                    if (gameStatus == 1) {
+                        camera.position.x += (mouseX * 550 - camera.position.x) * .2;
+                        camera.position.y += (-mouseY * 550 - camera.position.y) * .2;
+                        tubes.rotation.z = tm / 100000;
+                    } else {
+                        camera.position.x = 0;
+                        camera.position.y = 0;
+                        tubes.rotation.z = tm / 10000;
+                    }
+
+                    camera.lookAt(new THREE.Vector3(camera.position.x, camera.position.y, -1000));
+
+                    // neon fx
+                    material3.opacity = (tm / 1890) % 1;
+                    material2.opacity = (tm % 700 > 350 ? 0.25 : 1);
+
+                    if (phase == -1) {
+                        material1.color.setHSL((tm % 2000) / 1000, 1, 0.5);
+                        material2.color.setHSL((tm % 2007) / 1000, 1, 0.5);
+                        material3.color.setHSL((tm % 2014) / 1000, 1, 0.5);
+                        material4.color.setHSL((tm % 2021) / 1000, 1, 0.5);
+                        material5.color.setHSL((tm % 2028) / 1000, 1, 0.5);
+                    }
+
+
+
+                    for (var i = 0; i < tubes.children.length; i++) {
+                        var object = tubes.children[i];
+                        object.position.z += deltaTime * speed;
+
+                        if (object.position.z > object.bb) object.position.z = -far;
+                    }
+
+                    if (gameStatus == 1) {
+                        for (var i = 0, l = portals.children.length; i < l; i++) {
+                            var sprite = portals.children[i];
+
+                            sprite.position.z += deltaTime * speed;
+
+                            if (sprite.position.z > -speed * 200 && sprite.check == 0 && (Math.abs(camera.position.x - sprite.position.x) < 120) && (Math.abs(camera.position.y - sprite.position.y) < 120)) {
+                                sprite.material.color.setHex(0xffffff)
+                                sprite.check = 1;
+                                score++;
+                                phaseScore++;
+                                updateScore();
+                                audio.makeSound(0, 1 + score / 100);
+                            }
+
+                            if (sprite.position.z > speed * 2) {
+
+                                if (sprite.check == 0) {
+                                    speed *= 0.33;
+                                    score = 0;
+                                    phaseScore = 0;
+                                    updateScore();
+                                    audio.makeSound(1, 1);
+                                }
+
+                                // portal reset
+                                sprite.position = {
+                                    x: Math.random() * 300 - 150,
+                                    y: Math.random() * 300 - 150,
+                                    z: sprite.position.z - far
+                                };
+                                sprite.material.color.setHex(portalcolor[phase])
+                                sprite.material.map = portaltexture[phase];
+                                sprite.check = 0;
+                            }
+
+                        }
+                    } else {
+                        var panel = document.getElementById('panel');
+                        // panel.style.backgroundColor = "rgba(255,255,255," + (0.05+Math.random()/15) + ")";
+                    }
+
+                    composer.render();
+                }
+
+            }
+
+            function buttonClick(e) {
+
+                switch (e.currentTarget.id) {
+                    case "audiotoggle":
+
+                        switch (musicVolume) {
+                            case 3:
+                                musicVolume = 0;
+                                e.currentTarget.style.opacity = 0.2;
+                                document.getElementById('audioloop').volume = 0;
+                                break;
+                            case 2:
+                                musicVolume = 3;
+                                e.currentTarget.style.opacity = 1;
+                                document.getElementById('audioloop').volume = 1;
+                                break;
+                            case 1:
+                                musicVolume = 2;
+                                e.currentTarget.style.opacity = 0.66;
+                                document.getElementById('audioloop').volume = 0.66;
+                                break;
+                            case 0:
+                                musicVolume = 1;
+                                e.currentTarget.style.opacity = 0.33;
+                                document.getElementById('audioloop').volume = 0.33;
+                                break;
+
+                        }
+
+                        break;
+
+                    case "esc":
+                        setStatus(0);
+                        break;
+
+                    case "start":
+                        setStatus(1);
+                        material1.visible = material2.visible = material3.visible = material4.visible = material5.visible = false;
+                        break;
+
+                }
+            }
+
+            bind("audiotoggle", buttonClick);
+            bind("esc", buttonClick);
+            bind("start", buttonClick);
+
+        })();
+    </script>
+
+    <!-- <script>
+		  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+		  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+		  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+		  ga('create', 'UA-58832-3', 'omiod.com');
+		  ga('send', 'pageview');
+
+		</script> -->
+
+
+
+</body></html>
